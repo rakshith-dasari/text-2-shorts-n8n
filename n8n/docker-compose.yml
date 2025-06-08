@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  n8n:
+    build:
+      context: .             # assumes Dockerfile is in the same directory
+    ports:
+      - "8888:5678"
+    environment:
+      - TZ=UTC
+    volumes:
+      - ~/n8n:/home/node/.n8n
+      - ~/n8nData:/data
+    restart: unless-stopped

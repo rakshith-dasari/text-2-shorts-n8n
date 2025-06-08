@@ -1,0 +1,8 @@
+services:
+  whisper:
+    build: .
+    ports:
+      - "8881:8881"
+    volumes:
+      - ~/n8nData/subs:/app/subs
+      - ~/n8nData/audio:/app/audio
