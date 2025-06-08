@@ -1,0 +1,503 @@
+{
+  "name": "Reddit Shorts",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -300,
+        -140
+      ],
+      "id": "f913d99a-13f2-4c4c-8a61-4bcb73d9c564",
+      "name": "Schedule Trigger3"
+    },
+    {
+      "parameters": {
+        "url": "https://oauth.reddit.com/r/AmItheAsshole/top?t=day&limit=1",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "redditOAuth2Api",
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        -140
+      ],
+      "id": "e09f7133-342f-4564-8cfa-b792c65dbcd2",
+      "name": "HTTP Request",
+      "credentials": {
+        "redditOAuth2Api": {
+          "id": "yeP7o0bpNbWKs0Rd",
+          "name": "Reddit account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "824bc4cd-117f-43b0-909b-91f76a4b7f16",
+              "name": "Title",
+              "value": "={{ $json.data.children[0].data.title }}",
+              "type": "string"
+            },
+            {
+              "id": "9f2b65b0-3b81-4fcc-aca9-fabb79d2b1ab",
+              "name": "Post",
+              "value": "={{ $json.data.children[0].data.selftext.replace(/\\n/g, \" \") }}",
+              "type": "string"
+            },
+            {
+              "id": "62f1310e-d5c4-43ad-b898-2eb2abc24642",
+              "name": "id",
+              "value": "={{ $json.data.children[0].data.name }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        140,
+        -140
+      ],
+      "id": "c49c60c5-8905-4d4f-ac75-c3bad39a9d1a",
+      "name": "Clean Data"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8881/synthesize/",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.Title }},{{ $json.Post }}"
+            },
+            {
+              "name": "filename",
+              "value": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        -140
+      ],
+      "id": "7d451cc3-19a7-4056-9a22-c3ac700d259a",
+      "name": "Generate Audio and Subtitles"
+    },
+    {
+      "parameters": {
+        "executeOnce": false,
+        "command": "=ffmpeg \\\n  -i \"/data/audio/{{ $('Select Random Video').item.json.id }}.mp3\" \\\n  -i \"/data/video/{{ $('Select Random Video').item.json.row_number }}.mp4\" \\\n  -filter_complex \"\n    [1:v]setpts=PTS/1.5,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,ass='/data/subs/{{ $('Select Random Video').item.json.id }}.ass'[outv];[0:a]atempo=1.5, volume=1.5[aout]\" \\\n  -map \"[outv]\" \\\n  -map \"[aout]\" \\\n  -aspect 9:16 \\\n  -c:v libx264 \\\n  -c:a aac \\\n  -t {{ ($('Select Random Video').item.json.audio_length + 0.5)/1.5}} \\\n  \"/data/final/{{ $('Select Random Video').item.json.id }}.mp4\" \\\n  -y\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        -140
+      ],
+      "id": "6b96b7a7-154f-405c-9bc4-4b75a161ada4",
+      "name": "Generate Final Video"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/upload/youtube/v3/videos?part=snippet,status&uploadType=resumable",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Upload-Content-Type",
+              "value": "video/webm"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "RAW/JSON",
+        "body": "={\n  \"snippet\": {\n    \"title\": \"{{ $json.title }}\",\n    \"description\": \"{{ $json.description }}\",\n    \"tags\": \"[{{ $json.tags }}]\",\n    \"defaultLanguage\": \"en\",\n    \"defaultAudioLanguage\": \"en\"\n  },\n  \"status\": {\n    \"privacyStatus\": \"public\",\n    \"license\": \"youtube\",\n    \"embeddable\": true,\n    \"publicStatsViewable\": true,\n    \"madeForKids\": false\n  }\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1900,
+        -140
+      ],
+      "id": "db5a32f5-cf28-4cf7-9f43-d44e426304e0",
+      "name": "Create Youtube Link1",
+      "retryOnFail": false,
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "WLK9yItjWAZpow6O",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileSelector": "=/data/final/{{ $('Select Random Video').item.json.id }}.mp4",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2120,
+        -140
+      ],
+      "id": "69398bd5-9fd2-43d1-8518-3d529c2a6a1b",
+      "name": "Read/Write Files from Disk1"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $('Create Youtube Link1').item.json.headers.location }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "youTubeOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "video/webm"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2340,
+        -140
+      ],
+      "id": "56ab953a-37cc-4c7f-90a2-026b28def136",
+      "name": "Upload Video1",
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "WLK9yItjWAZpow6O",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1hiOpmC2fWiFJb2rlyGUQXzPvDL3JnADFoY1f9v_o1b4",
+          "mode": "list",
+          "cachedResultName": "Videos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hiOpmC2fWiFJb2rlyGUQXzPvDL3JnADFoY1f9v_o1b4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1hiOpmC2fWiFJb2rlyGUQXzPvDL3JnADFoY1f9v_o1b4/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [
+        580,
+        -140
+      ],
+      "id": "b5bda238-2d23-46d9-b31a-88ebfb28bf1f",
+      "name": "Get Videos",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "L465499Ies5L3o7S",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "var count = $input.all().length;\nvar index = Math.floor(Math.random() * count);\nconst {row_number, Link} = $input.all()[index].json\nreturn [{ json: { row_number, Link, id:$('Clean Data').first().json.id , audio_length:$('Generate Audio and Subtitles').first().json.length, title:$('Clean Data').first().json.Title }}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        -140
+      ],
+      "id": "1586ada4-64b9-4a49-88cd-54e01dbc62fd",
+      "name": "Select Random Video"
+    },
+    {
+      "parameters": {
+        "executeOnce": false,
+        "command": "=yt-dlp -o \"/data/video/{{ $json.row_number }}.mp4\" \\\n  --download-sections \"*00:00:00-00:03:05\" \\\n  -f \"bestvideo[ext=mp4]\" \\\n  \"{{ $json.Link }}\"\n"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        -140
+      ],
+      "id": "0e4dafde-0db0-4bdc-85d8-5bcf4c58a95c",
+      "name": "Download or Fetch Video"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "RAW/JSON",
+        "body": "={\n  \"model\": \"deepseek/deepseek-r1-0528-qwen3-8b:free\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"<CONTENT>{{ $('Select Random Video').item.json.title }}</CONTENT>\"\n    },\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert YouTube-Shorts copywriter.\\n\\nWhen you answer:\\n• Output exactly ONE valid JSON object and NOTHING else.\\n• Do NOT wrap the JSON in ``` or any other fence.\\n• The very first character you send must be { and the very last must be }.\\n• Escape internal newlines as \\\\n. No trailing commas.\\n\\nThe object keys and rules:\\n{\\n  \\\"title\\\":        ≤60 chars, Title Case, starts with verb/number,\\n  \\\"description\\\":  two sentences (≤160 chars total) separated by \\\\n, second ends “Subscribe for more!”, include 3–5 hashtags,\\n  \\\"tags\\\":         array of 8–12 comma-free keywords, no # symbols\\n}\\n\\nBegin.\"}\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        -140
+      ],
+      "id": "9e2fda7c-8609-4cb6-925f-6032c88e8113",
+      "name": "Generate Title and Description",
+      "credentials": {
+        "openRouterApi": {
+          "id": "y7dFiZx53agpGiai",
+          "name": "OpenRoute"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "var parsed = JSON.parse($input.first().json.choices[0].message.content)\n\nreturn [\n  {\n    json: parsed\n  }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -140
+      ],
+      "id": "5e36db3e-2d63-4060-8149-0d0de83b15c7",
+      "name": "Code1",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "command": "=rm /data/final/{{ $('Read/Write Files from Disk1').item.json.fileName }}"
+      },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        2560,
+        -140
+      ],
+      "id": "44f9ece2-2ce4-4627-880c-a81cf6ba6662",
+      "name": "Delete Final Video"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Clean Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Data": {
+      "main": [
+        [
+          {
+            "node": "Generate Audio and Subtitles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Audio and Subtitles": {
+      "main": [
+        [
+          {
+            "node": "Get Videos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Final Video": {
+      "main": [
+        [
+          {
+            "node": "Generate Title and Description",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Youtube Link1": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk1": {
+      "main": [
+        [
+          {
+            "node": "Upload Video1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Video1": {
+      "main": [
+        [
+          {
+            "node": "Delete Final Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Videos": {
+      "main": [
+        [
+          {
+            "node": "Select Random Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Random Video": {
+      "main": [
+        [
+          {
+            "node": "Download or Fetch Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download or Fetch Video": {
+      "main": [
+        [
+          {
+            "node": "Generate Final Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Title and Description": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Create Youtube Link1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d1e1b3c4-df6f-4f21-85d2-e49a596f5998",
+  "meta": {
+    "instanceId": "21405988af76ab54e5d1eaecb13a692a4e2f7d19a2354ad9722b22f1b5412f5d"
+  },
+  "id": "pQ5jaUnt9PSr4dMk",
+  "tags": []
+}
